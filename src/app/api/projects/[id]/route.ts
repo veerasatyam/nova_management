@@ -160,11 +160,39 @@ export async function DELETE(
     }
 
     const { id } = params;
-    await prisma.project.delete({
-      where: { id },
+
+    const project = await prisma.project.findFirst({
+      where: {
+        OR: [{ id }, { key: id.toUpperCase() }],
+      },
+      include: {
+        members: true,
+      },
     });
 
-    return NextResponse.json({ success: true, message: "Project deleted" });
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Role-based permission: System ADMIN, project owner, or project ADMIN member
+    const isOwner = project.ownerId === user.id;
+    const isSystemAdmin = user.role === "ADMIN";
+    const isProjectAdmin = project.members.some(
+      (m) => m.userId === user.id && m.role === "ADMIN"
+    );
+
+    if (!isOwner && !isSystemAdmin && !isProjectAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only project owners or administrators can delete this project." },
+        { status: 403 }
+      );
+    }
+
+    await prisma.project.delete({
+      where: { id: project.id },
+    });
+
+    return NextResponse.json({ success: true, message: `Project "${project.name}" deleted successfully` });
   } catch (error: any) {
     console.error("DELETE /api/projects/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

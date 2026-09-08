@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ProjectItem, TaskItem, TaskStatus } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { TaskListView } from "@/components/tasks/TaskListView";
 import { TaskDetailModal } from "@/components/tasks/TaskDetailModal";
@@ -21,6 +22,8 @@ import {
   CheckCircle2,
   Clock,
   UserPlus,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   PieChart,
@@ -45,6 +48,9 @@ export default function ProjectDetailPage() {
 
   const { socket, joinProject, leaveProject, emitTaskMoved } = useSocket();
 
+  const router = useRouter();
+  const { user } = useAuth();
+
   // Modals
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -53,6 +59,37 @@ export default function ProjectDetailPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState("MEMBER");
+
+  // Project Delete Confirmation
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const canDelete = Boolean(
+    user &&
+    (user.role === "ADMIN" ||
+     project?.ownerId === user.id ||
+     project?.members?.some((m) => m.userId === user.id && m.role === "ADMIN"))
+  );
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete project");
+      }
+      router.push("/projects");
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete project");
+      setDeleting(false);
+    }
+  };
 
   const loadProject = async () => {
     if (!projectId) return;
@@ -229,6 +266,17 @@ export default function ProjectDetailPage() {
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            {canDelete && (
+              <button
+                onClick={() => setDeleteModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-semibold transition"
+                title="Delete Project (Admin & Owner only)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            )}
+
             <button
               onClick={() => setInviteModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
@@ -561,6 +609,65 @@ export default function ProjectDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Project</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Permanent destruction</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              Are you sure you want to delete <strong className="font-semibold text-slate-900 dark:text-white">"{project.name}"</strong>? All associated tasks, subtasks, discussions, and member assignments will be permanently removed. This action cannot be undone.
+            </p>
+
+            {deleteError && (
+              <div className="p-3 text-xs rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteError("");
+                }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteProject}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 active:bg-rose-700 disabled:opacity-50 transition shadow-md shadow-rose-600/30 flex items-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
