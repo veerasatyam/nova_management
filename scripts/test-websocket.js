@@ -39,6 +39,9 @@ async function testWebSockets() {
   socket1.emit("project:join", testProjectId);
   socket2.emit("project:join", testProjectId);
 
+  // Give server a tick to register room membership
+  await new Promise((r) => setTimeout(r, 100));
+
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Broadcast timeout")), 5000);
 
