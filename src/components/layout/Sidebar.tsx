@@ -36,6 +36,8 @@ export function Sidebar({ onOpenCreateProject }: SidebarProps) {
     { href: "/team", label: "Team & Workload", icon: Users2 },
   ];
 
+  const currentPath = pathname || "";
+
   return (
     <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between shrink-0 hidden md:flex transition-colors">
       <div className="p-4 space-y-6">
@@ -48,8 +50,8 @@ export function Sidebar({ onOpenCreateProject }: SidebarProps) {
             const Icon = link.icon;
             const isActive =
               link.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(link.href);
+                ? currentPath === "/dashboard"
+                : currentPath.startsWith(link.href);
             return (
               <Link
                 key={link.href}
@@ -86,7 +88,7 @@ export function Sidebar({ onOpenCreateProject }: SidebarProps) {
 
           <div className="space-y-0.5 max-h-64 overflow-y-auto pr-1">
             {projects.map((proj) => {
-              const isCurrent = pathname === `/projects/${proj.id}` || pathname === `/projects/${proj.key}`;
+              const isCurrent = currentPath === `/projects/${proj.id}` || currentPath === `/projects/${proj.key}`;
               return (
                 <Link
                   key={proj.id}
