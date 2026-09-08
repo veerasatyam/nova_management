@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  nova-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nova_productivity_platform
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=nova-super-secret-jwt-key-for-auth-production-grade-2026
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./data:/app/prisma/data
