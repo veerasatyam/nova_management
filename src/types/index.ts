@@ -51,6 +51,12 @@ export interface TaskItem {
   actualHours?: number | null;
   tags?: string | null;
   projectId: string;
+  project?: {
+    id: string;
+    name: string;
+    key: string;
+    color?: string | null;
+  } | null;
   creatorId: string;
   assigneeId?: string | null;
   assignee?: UserSummary | null;
