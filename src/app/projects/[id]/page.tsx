@@ -7,6 +7,7 @@ import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { TaskListView } from "@/components/tasks/TaskListView";
 import { TaskDetailModal } from "@/components/tasks/TaskDetailModal";
 import { CreateTaskModal } from "@/components/tasks/CreateTaskModal";
+import { useSocket } from "@/context/SocketContext";
 import { Avatar } from "@/components/common/Avatar";
 import { PriorityBadge, StatusBadge } from "@/components/common/Badge";
 import { formatDate } from "@/lib/utils";
@@ -42,6 +43,8 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"board" | "list" | "analytics" | "team">("board");
 
+  const { socket, joinProject, leaveProject, emitTaskMoved } = useSocket();
+
   // Modals
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -70,10 +73,37 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     loadProject();
+    if (projectId) {
+      joinProject(projectId);
+    }
+
+    if (socket) {
+      const handleRemoteMove = (data: { taskId: string; newStatus: TaskStatus; newOrder: number }) => {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === data.taskId ? { ...t, status: data.newStatus, order: data.newOrder } : t
+          )
+        );
+      };
+
+      const handleRemoteCreate = (data: { task: TaskItem }) => {
+        setTasks((prev) => [data.task, ...prev.filter((t) => t.id !== data.task.id)]);
+      };
+
+      socket.on("task:moved", handleRemoteMove);
+      socket.on("task:created", handleRemoteCreate);
+
+      return () => {
+        socket.off("task:moved", handleRemoteMove);
+        socket.off("task:created", handleRemoteCreate);
+        leaveProject(projectId);
+      };
+    }
+
     const handleRefresh = () => loadProject();
     window.addEventListener("nova:refresh", handleRefresh);
     return () => window.removeEventListener("nova:refresh", handleRefresh);
-  }, [projectId]);
+  }, [projectId, socket]);
 
   // Handle Drag & Drop move
   const handleTaskMoved = async (taskId: string, newStatus: TaskStatus, newOrder: number) => {
@@ -81,6 +111,14 @@ export default function ProjectDetailPage() {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, order: newOrder } : t))
     );
+
+    // Emit live WebSocket event so all connected peers see the card move instantly!
+    emitTaskMoved({
+      projectId: project?.id || projectId,
+      taskId,
+      newStatus,
+      newOrder,
+    });
 
     try {
       await fetch(`/api/tasks/${taskId}`, {

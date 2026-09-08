@@ -14,7 +14,9 @@ import {
   User,
   ShieldCheck,
   ChevronDown,
+  Radio,
 } from "lucide-react";
+import { useSocket } from "@/context/SocketContext";
 
 interface NavbarProps {
   onOpenCreateTask?: () => void;
@@ -23,6 +25,7 @@ interface NavbarProps {
 
 export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
   const { user, logout, demoLogin } = useAuth();
+  const { connected } = useSocket();
   const [isDark, setIsDark] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchVal, setSearchVal] = useState("");
@@ -99,6 +102,15 @@ export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
 
       {/* Right Actions */}
       <div className="flex items-center gap-2.5">
+        {/* Live Realtime WebSocket indicator */}
+        <div
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 text-[10px] font-semibold text-slate-600 dark:text-slate-300 select-none"
+          title={connected ? "Connected to Real-time WebSockets" : "Connecting to WebSockets..."}
+        >
+          <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+          <span>{connected ? "Live Sync" : "Syncing..."}</span>
+        </div>
+
         {/* Create Task Quick Action */}
         {onOpenCreateTask && (
           <button
