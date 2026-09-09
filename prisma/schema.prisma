@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -8,25 +8,25 @@ generator client {
 }
 
 model User {
-  id           String          @id @default(cuid())
-  name         String
-  email        String          @unique
-  passwordHash String
-  avatar       String?
-  title        String?         @default("Product Engineer")
-  role         String          @default("MEMBER") // ADMIN, MANAGER, MEMBER, VIEWER
-  projects     ProjectMember[]
-  createdProjects Project[]    @relation("ProjectOwner")
-  createdTasks Task[]          @relation("TaskCreator")
-  assignedTasks Task[]         @relation("TaskAssignee")
-  comments     Comment[]
-  activityLogs ActivityLog[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  email           String          @unique
+  passwordHash    String
+  avatar          String?
+  title           String?         @default("Product Engineer")
+  role            String          @default("MEMBER") // ADMIN, MANAGER, MEMBER, VIEWER
+  projects        ProjectMember[]
+  createdProjects Project[]       @relation("ProjectOwner")
+  createdTasks    Task[]          @relation("TaskCreator")
+  assignedTasks   Task[]          @relation("TaskAssignee")
+  comments        Comment[]
+  activityLogs    ActivityLog[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model Project {
-  id           String          @id @default(cuid())
+  id           String          @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   key          String          @unique // e.g., "NOVA", "MOB", "INFRA"
   description  String?
@@ -35,7 +35,7 @@ model Project {
   color        String          @default("#0d9488") // Hex accent color
   startDate    DateTime?
   dueDate      DateTime?
-  ownerId      String
+  ownerId      String          @db.ObjectId
   owner        User            @relation("ProjectOwner", fields: [ownerId], references: [id])
   members      ProjectMember[]
   tasks        Task[]
@@ -45,12 +45,12 @@ model Project {
 }
 
 model ProjectMember {
-  id        String   @id @default(cuid())
-  projectId String
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  projectId String   @db.ObjectId
+  userId    String   @db.ObjectId
   role      String   @default("MEMBER") // ADMIN, MANAGER, MEMBER, VIEWER
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@unique([projectId, userId])
@@ -59,7 +59,7 @@ model ProjectMember {
 }
 
 model Task {
-  id             String        @id @default(cuid())
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
   taskNumber     Int           @default(1)
   title          String
   description    String?
@@ -70,11 +70,11 @@ model Task {
   estimatedHours Float?
   actualHours    Float?
   tags           String?       // Comma separated tags e.g. "Frontend,Bug"
-  projectId      String
-  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creatorId      String
+  projectId      String        @db.ObjectId
+  project        Project       @relation(fields: [projectId], references: [id])
+  creatorId      String        @db.ObjectId
   creator        User          @relation("TaskCreator", fields: [creatorId], references: [id])
-  assigneeId     String?
+  assigneeId     String?       @db.ObjectId
   assignee       User?         @relation("TaskAssignee", fields: [assigneeId], references: [id])
   subtasks       Subtask[]
   comments       Comment[]
@@ -88,12 +88,12 @@ model Task {
 }
 
 model Subtask {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   title     String
   completed Boolean  @default(false)
   order     Int      @default(0)
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -101,12 +101,12 @@ model Subtask {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   content   String
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id])
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -114,15 +114,15 @@ model Comment {
 }
 
 model ActivityLog {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   action    String   // e.g. "CREATED_TASK", "STATUS_CHANGE", "ADDED_COMMENT"
   details   String   // Human readable action e.g. "Moved task from TODO to IN_PROGRESS"
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskId    String?
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?  @db.ObjectId
+  project   Project? @relation(fields: [projectId], references: [id])
+  taskId    String?  @db.ObjectId
+  task      Task?    @relation(fields: [taskId], references: [id])
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
   @@index([projectId])
