@@ -3,7 +3,7 @@ FROM node:20-bullseye-slim
 WORKDIR /app
 
 # Install openssl for Prisma engine support
-RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y -o Acquire::Check-Valid-Until=false && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests
 COPY package*.json ./
