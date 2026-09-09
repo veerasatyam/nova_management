@@ -1,42 +1,39 @@
-# Stage 1: Base & Dependencies
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:20-bullseye-slim
+
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# Install openssl for Prisma engine support
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency manifests
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install all dependencies
 RUN npm ci
 
-# Stage 2: Build
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Copy the rest of the application
 COPY . .
 
-# Generate Prisma Client & Build Next.js
-ENV NEXT_TELEMETRY_DISABLED 1
-RUN npx prisma generate
+# Default build arguments to prevent Next.js static evaluation failures during build
+ARG DATABASE_URL="mongodb+srv://satyam:satyam@backend.vlkhhhz.mongodb.net/nova?retryWrites=true&w=majority&appName=Backend"
+ENV DATABASE_URL=$DATABASE_URL
+ARG JWT_SECRET="nova-production-deployment-secret-key-2026"
+ENV JWT_SECRET=$JWT_SECRET
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build Next.js
 RUN npm run build
 
-# Stage 3: Runner
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV PORT 3000
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/dev.db ./dev.db
-
-USER nextjs
+# Default runtime environment
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Start unified Next.js + Socket.io server
+CMD ["node", "server.js"]
