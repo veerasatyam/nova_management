@@ -9,6 +9,8 @@
 
 NOVA is a full-stack, enterprise-grade project management and team productivity web application built for engineering and product teams. It unites workspace management, drag-and-drop Kanban workflows, subtask checklists, team discussions, velocity tracking, and workload analytics into a single cohesive experience.
 
+> 📖 **Deep Dive Documentation**: For the complete, end-to-end technical explanation, database schemas, WebSocket event dictionary, and deployment guides, see **[PROJECT_DOCUMENTATION.md](./PROJECT_DOCUMENTATION.md)**.
+
 ---
 
 ## 🌟 Key Features
