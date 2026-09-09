@@ -92,56 +92,80 @@ export async function POST(request: Request) {
 
     const data = validated.data;
 
-    // Determine the next task number for this project
-    const lastTask = await prisma.task.findFirst({
-      where: { projectId: data.projectId },
-      orderBy: { taskNumber: "desc" },
-    });
-    const taskNumber = (lastTask?.taskNumber || 0) + 1;
-
-    // Determine the order (put at the bottom of the column)
-    const columnCount = await prisma.task.count({
-      where: { projectId: data.projectId, status: data.status },
+    // Verify project exists and caller is authorized (System Admin, Owner, or Member)
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+      include: {
+        members: { select: { userId: true } },
+      },
     });
 
-    const task = await prisma.task.create({
-      data: {
-        taskNumber,
-        title: data.title,
-        description: data.description,
-        status: data.status,
-        priority: data.priority,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        order: columnCount,
-        tags: data.tags,
-        estimatedHours: data.estimatedHours,
-        projectId: data.projectId,
-        creatorId: user.id,
-        assigneeId: data.assigneeId || null,
-        activityLogs: {
-          create: {
-            action: "CREATED_TASK",
-            details: `Created task "${data.title}" in ${data.status}`,
-            projectId: data.projectId,
-            userId: user.id,
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const isSystemAdmin = user.role === "ADMIN";
+    const isOwner = project.ownerId === user.id;
+    const isMember = project.members.some((m) => m.userId === user.id);
+
+    if (!isSystemAdmin && !isOwner && !isMember) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not a member of this project" },
+        { status: 403 }
+      );
+    }
+
+    // Execute atomically in a transaction to prevent race conditions on taskNumber
+    const task = await prisma.$transaction(async (tx) => {
+      const lastTask = await tx.task.findFirst({
+        where: { projectId: data.projectId },
+        orderBy: { taskNumber: "desc" },
+      });
+      const taskNumber = (lastTask?.taskNumber || 0) + 1;
+
+      const columnCount = await tx.task.count({
+        where: { projectId: data.projectId, status: data.status },
+      });
+
+      return await tx.task.create({
+        data: {
+          taskNumber,
+          title: data.title,
+          description: data.description,
+          status: data.status,
+          priority: data.priority,
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          order: columnCount,
+          tags: data.tags,
+          estimatedHours: data.estimatedHours,
+          projectId: data.projectId,
+          creatorId: user.id,
+          assigneeId: data.assigneeId || null,
+          activityLogs: {
+            create: {
+              action: "CREATED_TASK",
+              details: `Created task "${data.title}" in ${data.status}`,
+              projectId: data.projectId,
+              userId: user.id,
+            },
           },
         },
-      },
-      include: {
-        assignee: {
-          select: { id: true, name: true, email: true, avatar: true },
+        include: {
+          assignee: {
+            select: { id: true, name: true, email: true, avatar: true },
+          },
+          creator: {
+            select: { id: true, name: true, email: true },
+          },
+          project: {
+            select: { id: true, name: true, key: true },
+          },
+          subtasks: true,
+          _count: {
+            select: { comments: true, subtasks: true },
+          },
         },
-        creator: {
-          select: { id: true, name: true, email: true },
-        },
-        project: {
-          select: { id: true, name: true, key: true },
-        },
-        subtasks: true,
-        _count: {
-          select: { comments: true, subtasks: true },
-        },
-      },
+      });
     });
 
     return NextResponse.json({ task }, { status: 201 });

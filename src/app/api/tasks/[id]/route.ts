@@ -96,10 +96,34 @@ export async function PATCH(
 
     const existingTask = await prisma.task.findUnique({
       where: { id },
+      include: {
+        project: {
+          select: {
+            ownerId: true,
+            members: { select: { userId: true, role: true } },
+          },
+        },
+      },
     });
 
     if (!existingTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Check authorization: User must be System Admin, project owner, project member, creator, or assignee
+    const isSystemAdmin = user.role === "ADMIN";
+    const isProjectOwner = existingTask.project.ownerId === user.id;
+    const isCreator = existingTask.creatorId === user.id;
+    const isAssignee = existingTask.assigneeId === user.id;
+    const isProjectMember = existingTask.project.members.some(
+      (m) => m.userId === user.id
+    );
+
+    if (!isSystemAdmin && !isProjectOwner && !isCreator && !isAssignee && !isProjectMember) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to modify tasks in this project" },
+        { status: 403 }
+      );
     }
 
     const updateData: any = { ...validated.data };
@@ -163,9 +187,35 @@ export async function DELETE(
     }
 
     const { id } = params;
-    const task = await prisma.task.findUnique({ where: { id } });
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        project: {
+          select: {
+            ownerId: true,
+            members: { select: { userId: true, role: true } },
+          },
+        },
+      },
+    });
+
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Role-based permission: System ADMIN, project owner, task creator, or project manager/admin
+    const isSystemAdmin = user.role === "ADMIN";
+    const isProjectOwner = task.project.ownerId === user.id;
+    const isCreator = task.creatorId === user.id;
+    const isProjectAdminOrManager = task.project.members.some(
+      (m) => m.userId === user.id && (m.role === "ADMIN" || m.role === "MANAGER")
+    );
+
+    if (!isSystemAdmin && !isProjectOwner && !isCreator && !isProjectAdminOrManager) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to delete this task" },
+        { status: 403 }
+      );
     }
 
     await prisma.task.delete({

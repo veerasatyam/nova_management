@@ -54,6 +54,8 @@ model ProjectMember {
   createdAt DateTime @default(now())
 
   @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model Task {
@@ -79,6 +81,10 @@ model Task {
   activityLogs   ActivityLog[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  @@index([projectId, status])
+  @@index([projectId, order])
+  @@index([assigneeId])
 }
 
 model Subtask {
@@ -90,6 +96,8 @@ model Subtask {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([taskId])
 }
 
 model Comment {
@@ -101,6 +109,8 @@ model Comment {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([taskId])
 }
 
 model ActivityLog {
@@ -114,4 +124,7 @@ model ActivityLog {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([taskId])
 }

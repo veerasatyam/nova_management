@@ -85,6 +85,33 @@ export async function POST(request: Request) {
 
     const { name, email, title, role, projectId } = validated.data;
 
+    // Privilege Escalation Prevention:
+    // Only System Admins or Project Owners/Admins can grant ADMIN or MANAGER roles.
+    const isSystemAdmin = user.role === "ADMIN";
+    if ((role === "ADMIN" || role === "MANAGER") && !isSystemAdmin) {
+      if (projectId) {
+        const project = await prisma.project.findUnique({
+          where: { id: projectId },
+          include: { members: true },
+        });
+        const isProjectAdmin =
+          project?.ownerId === user.id ||
+          project?.members.some((m) => m.userId === user.id && m.role === "ADMIN");
+
+        if (!isProjectAdmin) {
+          return NextResponse.json(
+            { error: "Forbidden: Only administrators can assign Admin or Manager roles" },
+            { status: 403 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: "Forbidden: Only administrators can assign Admin or Manager roles" },
+          { status: 403 }
+        );
+      }
+    }
+
     let targetUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });

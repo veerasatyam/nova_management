@@ -5,10 +5,11 @@ import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 import { CreateTaskModal } from "@/components/tasks/CreateTaskModal";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
@@ -23,6 +24,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       <Navbar
         onOpenCreateTask={() => setCreateTaskOpen(true)}
+        onSearch={(query) => {
+          if (query.trim() && pathname !== "/projects") {
+            router.push(`/projects?search=${encodeURIComponent(query.trim())}`);
+          }
+        }}
       />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar

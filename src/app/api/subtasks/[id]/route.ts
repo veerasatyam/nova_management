@@ -29,6 +29,38 @@ export async function PATCH(
       );
     }
 
+    const existingSubtask = await prisma.subtask.findUnique({
+      where: { id },
+      include: {
+        task: {
+          include: {
+            project: {
+              include: {
+                members: { select: { userId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingSubtask) {
+      return NextResponse.json({ error: "Subtask not found" }, { status: 404 });
+    }
+
+    const isSystemAdmin = user.role === "ADMIN";
+    const isOwner = existingSubtask.task.project.ownerId === user.id;
+    const isMember = existingSubtask.task.project.members.some(
+      (m) => m.userId === user.id
+    );
+
+    if (!isSystemAdmin && !isOwner && !isMember) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to modify this subtask" },
+        { status: 403 }
+      );
+    }
+
     const subtask = await prisma.subtask.update({
       where: { id },
       data: validated.data,
@@ -52,6 +84,39 @@ export async function DELETE(
     }
 
     const { id } = params;
+    const existingSubtask = await prisma.subtask.findUnique({
+      where: { id },
+      include: {
+        task: {
+          include: {
+            project: {
+              include: {
+                members: { select: { userId: true, role: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingSubtask) {
+      return NextResponse.json({ error: "Subtask not found" }, { status: 404 });
+    }
+
+    const isSystemAdmin = user.role === "ADMIN";
+    const isOwner = existingSubtask.task.project.ownerId === user.id;
+    const isCreator = existingSubtask.task.creatorId === user.id;
+    const isProjectAdmin = existingSubtask.task.project.members.some(
+      (m) => m.userId === user.id && (m.role === "ADMIN" || m.role === "MANAGER")
+    );
+
+    if (!isSystemAdmin && !isOwner && !isCreator && !isProjectAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to delete this subtask" },
+        { status: 403 }
+      );
+    }
+
     await prisma.subtask.delete({
       where: { id },
     });

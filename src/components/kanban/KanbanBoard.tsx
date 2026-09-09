@@ -85,12 +85,8 @@ export function KanbanBoard({
     const sourceStatus = source.droppableId as TaskStatus;
     const destStatus = destination.droppableId as TaskStatus;
 
-    // Optimistic UI reordering
     const taskToMove = boardTasks.find((t) => t.id === draggableId);
     if (!taskToMove) return;
-
-    const remaining = boardTasks.filter((t) => t.id !== draggableId);
-    const updatedTask = { ...taskToMove, status: destStatus };
 
     // Fire celebration confetti if moved to DONE!
     if (destStatus === "DONE" && sourceStatus !== "DONE") {
@@ -102,7 +98,44 @@ export function KanbanBoard({
       });
     }
 
-    setBoardTasks([...remaining, updatedTask]);
+    // Get current tasks in destination column (excluding the dragged task)
+    const otherTasksInDest = boardTasks
+      .filter((t) => t.status === destStatus && t.id !== draggableId)
+      .sort((a, b) => a.order - b.order);
+
+    // Insert taskToMove at destination.index
+    const updatedTask = { ...taskToMove, status: destStatus };
+    otherTasksInDest.splice(destination.index, 0, updatedTask);
+
+    // Re-index all tasks in destination column with sequential distinct orders
+    const reindexedDestTasks = otherTasksInDest.map((t, idx) => ({
+      ...t,
+      order: idx,
+    }));
+
+    // Other tasks not in destination column
+    const otherTasksOutsideDest = boardTasks.filter(
+      (t) => t.status !== destStatus && t.id !== draggableId
+    );
+
+    // If source column is different, re-index source column tasks as well
+    let finalBoardTasks: TaskItem[];
+    if (sourceStatus !== destStatus) {
+      const sourceTasks = otherTasksOutsideDest
+        .filter((t) => t.status === sourceStatus)
+        .sort((a, b) => a.order - b.order)
+        .map((t, idx) => ({ ...t, order: idx }));
+
+      const remainingOthers = otherTasksOutsideDest.filter(
+        (t) => t.status !== sourceStatus
+      );
+
+      finalBoardTasks = [...remainingOthers, ...sourceTasks, ...reindexedDestTasks];
+    } else {
+      finalBoardTasks = [...otherTasksOutsideDest, ...reindexedDestTasks];
+    }
+
+    setBoardTasks(finalBoardTasks);
 
     // Notify backend
     onTaskMoved(draggableId, destStatus, destination.index);

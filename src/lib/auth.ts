@@ -3,8 +3,13 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 
-const SECRET_KEY = process.env.JWT_SECRET || "nova-super-secret-jwt-key-for-auth-production-grade-2026";
-const encodedSecret = new TextEncoder().encode(SECRET_KEY);
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable must be set in production.");
+}
+
+export const SECRET_KEY =
+  process.env.JWT_SECRET || "nova-super-secret-jwt-key-for-auth-production-grade-2026";
+export const encodedSecret = new TextEncoder().encode(SECRET_KEY);
 
 export interface TokenPayload {
   userId: string;

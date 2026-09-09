@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { TaskItem, UserSummary, TaskStatus, TaskPriority } from "@/types";
+import { useSocket } from "@/context/SocketContext";
 import { Avatar } from "@/components/common/Avatar";
 import { PriorityBadge, StatusBadge } from "@/components/common/Badge";
 import { formatDate, formatRelativeTime, isOverdue } from "@/lib/utils";
@@ -37,6 +38,8 @@ export function TaskDetailModal({
   const [task, setTask] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"details" | "comments" | "activity">("details");
+
+  const { socket, emitSubtaskToggled, emitCommentAdded, emitTaskUpdated } = useSocket();
 
   // Subtask form
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
@@ -75,6 +78,53 @@ export function TaskDetailModal({
     }
   }, [isOpen, taskId]);
 
+  // Real-time synchronization for comments, subtasks, and task changes
+  useEffect(() => {
+    if (!socket || !taskId) return;
+
+    const handleRemoteComment = (data: { taskId: string; comment: any }) => {
+      if (data.taskId === taskId) {
+        setTask((prev: any) => {
+          if (!prev) return prev;
+          const exists = prev.comments?.some((c: any) => c.id === data.comment.id);
+          if (exists) return prev;
+          return {
+            ...prev,
+            comments: [data.comment, ...(prev.comments || [])],
+          };
+        });
+      }
+    };
+
+    const handleRemoteSubtask = (data: { subtaskId: string; completed: boolean }) => {
+      setTask((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          subtasks: prev.subtasks?.map((s: any) =>
+            s.id === data.subtaskId ? { ...s, completed: data.completed } : s
+          ),
+        };
+      });
+    };
+
+    const handleRemoteTaskUpdate = (data: { taskId: string; task: any }) => {
+      if (data.taskId === taskId) {
+        setTask((prev: any) => ({ ...prev, ...data.task }));
+      }
+    };
+
+    socket.on("comment:added", handleRemoteComment);
+    socket.on("subtask:toggled", handleRemoteSubtask);
+    socket.on("task:updated", handleRemoteTaskUpdate);
+
+    return () => {
+      socket.off("comment:added", handleRemoteComment);
+      socket.off("subtask:toggled", handleRemoteSubtask);
+      socket.off("task:updated", handleRemoteTaskUpdate);
+    };
+  }, [socket, taskId]);
+
   if (!isOpen) return null;
 
   const updateField = async (fields: Record<string, any>) => {
@@ -88,6 +138,9 @@ export function TaskDetailModal({
       if (res.ok) {
         const data = await res.json();
         setTask((prev: any) => ({ ...prev, ...data.task }));
+        if (task?.projectId) {
+          emitTaskUpdated({ projectId: task.projectId, taskId, task: data.task });
+        }
         if (onTaskUpdated) onTaskUpdated();
       }
     } catch (e) {
@@ -133,6 +186,9 @@ export function TaskDetailModal({
             s.id === subtaskId ? { ...s, completed } : s
           ),
         }));
+        if (task?.projectId) {
+          emitSubtaskToggled({ projectId: task.projectId, subtaskId, completed });
+        }
         if (onTaskUpdated) onTaskUpdated();
       }
     } catch (e) {
@@ -174,6 +230,13 @@ export function TaskDetailModal({
           ...prev,
           comments: [data.comment, ...(prev.comments || [])],
         }));
+        if (task?.projectId) {
+          emitCommentAdded({
+            projectId: task.projectId,
+            taskId,
+            comment: data.comment,
+          });
+        }
         setNewComment("");
         if (onTaskUpdated) onTaskUpdated();
       }

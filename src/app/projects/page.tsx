@@ -1,17 +1,27 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { ProjectItem } from "@/types";
 import { FolderKanban, Plus, Search } from "lucide-react";
 
-export default function ProjectsPage() {
+function ProjectsContent() {
+  const searchParams = useSearchParams();
+  const queryParam = searchParams?.get("search") || "";
+
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(queryParam);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (queryParam) {
+      setSearch(queryParam);
+    }
+  }, [queryParam]);
 
   const loadProjects = async () => {
     try {
@@ -121,5 +131,19 @@ export default function ProjectsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12 text-xs text-slate-400">
+          Loading projects hub...
+        </div>
+      }
+    >
+      <ProjectsContent />
+    </Suspense>
   );
 }

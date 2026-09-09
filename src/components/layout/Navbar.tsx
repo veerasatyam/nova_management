@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/common/Avatar";
 import {
@@ -26,9 +27,11 @@ interface NavbarProps {
 export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
   const { user, logout, demoLogin } = useAuth();
   const { connected } = useSocket();
+  const router = useRouter();
   const [isDark, setIsDark] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Check initial dark mode preference
@@ -43,6 +46,19 @@ export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
       document.documentElement.classList.remove("dark");
       setIsDark(false);
     }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "/" &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const toggleTheme = () => {
@@ -54,6 +70,13 @@ export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
       document.documentElement.classList.add("dark");
       localStorage.theme = "dark";
       setIsDark(true);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchVal.trim()) {
+      router.push(`/projects?search=${encodeURIComponent(searchVal.trim())}`);
     }
   };
 
@@ -88,16 +111,17 @@ export function Navbar({ onOpenCreateTask, onSearch }: NavbarProps) {
 
       {/* Global Search */}
       <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
-        <div className="relative w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <form onSubmit={handleSearchSubmit} className="relative w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search tasks, projects, tags... (Press / to focus)"
             value={searchVal}
             onChange={handleSearchChange}
             className="w-full bg-slate-100 dark:bg-slate-800/80 border border-transparent focus:border-teal-500 dark:focus:border-teal-500 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 transition"
           />
-        </div>
+        </form>
       </div>
 
       {/* Right Actions */}

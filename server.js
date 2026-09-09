@@ -17,12 +17,48 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
+  const { jwtVerify } = require("jose");
+  const SECRET_KEY =
+    process.env.JWT_SECRET || "nova-super-secret-jwt-key-for-auth-production-grade-2026";
+  const encodedSecret = new TextEncoder().encode(SECRET_KEY);
+
+  const allowedOrigins = dev
+    ? "*"
+    : (process.env.ALLOWED_ORIGINS || `http://${hostname}:${port},http://localhost:${port}`).split(",");
+
   // Attach Socket.io to the HTTP server
   const io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: allowedOrigins,
+      credentials: true,
       methods: ["GET", "POST"],
     },
+  });
+
+  // Socket Authentication Middleware
+  io.use(async (socket, next) => {
+    try {
+      let token = socket.handshake.auth?.token;
+      if (!token && socket.handshake.headers?.cookie) {
+        const match = socket.handshake.headers.cookie.match(/nova_token=([^;]+)/);
+        if (match) token = match[1];
+      }
+
+      if (!token) {
+        // Allow developer/test harness if header specified
+        if (dev && socket.handshake.headers["x-test-auth"] === "allow") {
+          socket.user = { userId: "test-user", role: "TEST" };
+          return next();
+        }
+        return next(new Error("Authentication error: No token provided"));
+      }
+
+      const { payload } = await jwtVerify(token, encodedSecret);
+      socket.user = payload;
+      return next();
+    } catch (err) {
+      return next(new Error("Authentication error: Invalid or expired token"));
+    }
   });
 
   // Track connected users
@@ -75,6 +111,13 @@ app.prepare().then(() => {
     socket.on("comment:added", (data) => {
       console.log(`⚡ [WebSocket] Comment added:`, data);
       socket.to(data.projectId).emit("comment:added", data);
+    });
+
+    // Broadcast task deleted
+    socket.on("task:deleted", (data) => {
+      console.log(`⚡ [WebSocket] Task deleted:`, data);
+      socket.to(data.projectId).emit("task:deleted", data);
+      socket.broadcast.emit("dashboard:refresh");
     });
 
     socket.on("disconnect", () => {

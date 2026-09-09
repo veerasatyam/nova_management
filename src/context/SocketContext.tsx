@@ -12,6 +12,8 @@ interface SocketContextType {
   emitTaskMoved: (data: { projectId: string; taskId: string; newStatus: string; newOrder: number }) => void;
   emitTaskCreated: (data: { projectId: string; task: any }) => void;
   emitTaskUpdated: (data: { projectId: string; taskId: string; task: any }) => void;
+  emitSubtaskToggled: (data: { projectId: string; subtaskId: string; completed: boolean }) => void;
+  emitCommentAdded: (data: { projectId: string; taskId: string; comment: any }) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -23,6 +25,8 @@ const SocketContext = createContext<SocketContextType>({
   emitTaskMoved: () => {},
   emitTaskCreated: () => {},
   emitTaskUpdated: () => {},
+  emitSubtaskToggled: () => {},
+  emitCommentAdded: () => {},
 });
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
@@ -89,6 +93,18 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const emitSubtaskToggled = (data: { projectId: string; subtaskId: string; completed: boolean }) => {
+    if (socket && connected) {
+      socket.emit("subtask:toggled", data);
+    }
+  };
+
+  const emitCommentAdded = (data: { projectId: string; taskId: string; comment: any }) => {
+    if (socket && connected) {
+      socket.emit("comment:added", data);
+    }
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -100,6 +116,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         emitTaskMoved,
         emitTaskCreated,
         emitTaskUpdated,
+        emitSubtaskToggled,
+        emitCommentAdded,
       }}
     >
       {children}
